@@ -1,5 +1,5 @@
 from config import DEBUG
-import socket
+import json, socket
 
 
 class Server:
@@ -36,8 +36,7 @@ class Server:
                 fragments.append(chunk)
                 if len(chunk) < self.bufsize:
                     break
-            connection.close()
-            return (b"".join(fragments)).decode(decode_as).strip()
+            return json.loads((b"".join(fragments)).decode(decode_as)), connection
         except BlockingIOError:
             if connection is not None:
                 connection.close()
