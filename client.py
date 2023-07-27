@@ -43,14 +43,24 @@ class Client:
         status = send(
             host, port, {"route": "signup", "username": username, "password": password}
         )
-        print(status)
         return status["uuid"]
 
-    def __init__(self, username: str, password: str, uuid: str, ip_address: str):
+    def __init__(
+        self,
+        username: str,
+        password: str,
+        uuid: str,
+        ip_address: str,
+        host: str,
+        port: int,
+    ):
         self.username = username
         self.password = password
         self.uuid = uuid
         self.ip_address = ip_address
+        self.host = host
+        self.port = port
+        self.chatroom = None
 
     def __dict__(self):
         return {
@@ -58,5 +68,43 @@ class Client:
             "ip_address": self.ip_address,
         }
 
-    def send(self, host: str, port: int, chatroom_id: str, msg: str):
-        return send(host, port, {"msg": msg})
+    def create(self, name: str):
+        status = send(
+            self.host,
+            self.port,
+            {
+                "route": "create",
+                "username": self.username,
+                "password": self.password,
+                "name": name,
+            },
+        )
+        if status["code"] != 200:
+            raise Exception(status["reason"])
+        self.chatroom = status["chatroom_id"]
+
+    def join(self, chatroom_id: str):
+        status = send(
+            self.host,
+            self.port,
+            {
+                "route": "join",
+                "username": self.username,
+                "password": self.password,
+                "chatroom_id": chatroom_id,
+            },
+        )
+        return status["code"] == 200
+
+    def send(self, msg: str):
+        return send(
+            self.host,
+            self.port,
+            {
+                "route": "chat",
+                "username": self.username,
+                "password": self.password,
+                "chatroom_id": self.chatroom,
+                "msg": msg,
+            },
+        )

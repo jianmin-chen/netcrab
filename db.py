@@ -44,7 +44,7 @@ def authenticate(username: str, password: str):
                 password, client["password"]
             ):
                 # Valid user, return UUID
-                authenticated = {"uuid": client["uuid"]}
+                authenticated = {"uuid": client["uuid"], "username": client["username"]}
                 break
             elif client["username"] == username and not check_password(
                 password, client["password"]
@@ -83,10 +83,32 @@ def create(username: str, password: str):
     return uuid
 
 
-def create_chatroom(uuid: str):
-    with open(f"{uuid}_messages.json", "w") as f:
-        f.write("[]")
-    return []
+def create_chatroom(name: str):
+    uuid = 0
+    db = None
+    with open("chatrooms.json") as f:
+        db = json.loads(f.read())
+        uuid = len(db.keys())
+        with open(f"{uuid}_messages.json", "w") as chatroom:
+            chatroom.write("[]")
+        db[uuid] = name
+    with open("chatrooms.json", "w") as f:
+        f.write(json.dumps(db))
+    return uuid
+
+
+def chatroom_exists(uuid: str):
+    with open("chatrooms.json") as f:
+        db = json.loads(f.read())
+        if uuid in db.keys():
+            return True
+        return False
+
+
+def chatroom_name(uuid: str):
+    with open("chatrooms.json") as f:
+        db = json.loads(f.read())
+        return db[uuid]
 
 
 def get_chatroom(uuid: str):

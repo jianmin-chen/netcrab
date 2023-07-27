@@ -1,5 +1,10 @@
-from db import authenticate, create
+from db import authenticate, create, create_chatroom, chatroom_exists, chatroom_name
+from chatroom import Chatroom
 import json, socket, threading
+
+
+def not_none(d, keys):
+    return False not in [d.get(key) is not None for key in keys]
 
 
 class Server:
@@ -8,6 +13,7 @@ class Server:
         self.port = port
         self.backlog = backlog
         self.bufsize = bufsize
+        self.chatrooms = {}
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((self.host, self.port))
@@ -44,21 +50,57 @@ class Server:
             self.send(client, {"code": 500, "reason": str(e)})
 
     def respond(self, client, address, data):
-        if (
-            data.get("route") == "auth"
-            and data.get("username") is not None
-            and data.get("password") is not None
-        ):
+        if data.get("route") == "auth" and not_none(data, ["username", "password"]):
             status = authenticate(data["username"], data["password"])
             self.send(client, {"code": 200, "status": status})
             return
-        elif (
-            data.get("route") == "signup"
-            and data.get("username") is not None
-            and data.get("password") is not None
-        ):
+        elif data.get("route") == "signup" and not_none(data, ["username", "password"]):
             uuid = create(data["username"], data["password"])
             self.send(client, {"code": 200, "uuid": uuid})
+            return
+        elif data.get("route") == "create" and not_none(
+            data, ["username", "password", "name"]
+        ):
+            if not authenticate(data["username"], data["password"]):
+                self.send(client, {"code": 500, "reason": "Invalid authentication"})
+                return
+            chatroom_id = create_chatroom(data["name"])
+            self.chatrooms[chatroom_id] = Chatroom(data["name"], chatroom_id, [client])
+            self.send(client, {"code": 200, "chatroom_id": chatroom_id})
+            return
+        elif data.get("route") == "join" and not_none(
+            data, ["username", "password", "chatroom_id"]
+        ):
+            if not authenticate(data["username"], data["password"]):
+                self.send(client, {"code": 500, "reason": "Invalid authentication"})
+                return
+            if data["chatroom_id"] in self.chatrooms.keys():
+                self.chatrooms[data["chatroom_id"]].connections.append(client)
+                self.send(
+                    client,
+                    {"code": 200, "msgs": self.chatrooms[data["chatroom_id"]].messages},
+                )
+            else:
+                # Add chatroom in
+                if not chatroom_exists(data["chatroom_id"]):
+                    self.send(client, {"code": 500, "reason": "Chatroom doesn't exist"})
+                    return
+                self.chatrooms[data["chatroom_id"]] = Chatroom(
+                    chatroom_name(data["chatroom_id"]), data["chatroom_id"], [client]
+                )
+                self.send(
+                    client,
+                    {"code": 200, "msgs": self.chatrooms[data["chatroom_id"]].messages},
+                )
+                return
+        elif data.get("route") == "chat" and not_none(
+            data, ["username", "password", "chatroom_id", "msg"]
+        ):
+            status = authenticate(data["username"], data["password"])
+            if not status:
+                self.send(client, {"code": 500, "reason": "Invalid authentication"})
+                return
+            self.send(client, {"code": 200, "name": status["username"]})
             return
         self.send(client, {"code": 404, "reason": "Not Found"})
 

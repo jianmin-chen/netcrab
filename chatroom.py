@@ -3,9 +3,10 @@ from message import Message
 
 
 class Chatroom:
-    def __init__(self, name: str, uuid: str):
+    def __init__(self, name: str, uuid: str, connections: list = []):
         self.name = name
         self.uuid = uuid
+        self.connections = connections
 
         try:
             self.messages = get_chatroom(self.uuid)
