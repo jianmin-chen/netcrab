@@ -25,24 +25,25 @@ def send(host: str, port: int, data: dict):
         fragments.append(chunk)
         if len(chunk) < 1024:
             break
-    s.shutdown(socket.SHUT_RDWR)
     status = json.loads((b"".join(fragments)).decode("ascii"))
-    return status
+    return status, s
 
 
 class Client:
     @classmethod
     def authenticate(cls, host: int, port: int, username: str, password: str):
-        status = send(
+        status, s = send(
             host, port, {"route": "auth", "username": username, "password": password}
         )
+        s.shutdown(socket.SHUT_RDWR)
         return status
 
     @classmethod
     def signup(cls, host: int, port: int, username: str, password: str):
-        status = send(
+        status, s = send(
             host, port, {"route": "signup", "username": username, "password": password}
         )
+        s.shutdown(socket.SHUT_RDWR)
         return status["uuid"]
 
     def __init__(
@@ -94,7 +95,10 @@ class Client:
                 "chatroom_id": chatroom_id,
             },
         )
-        return status["code"] == 200
+        if status["code"] == 200:
+            self.chatroom = chatroom_id
+            return status["msgs"]
+        return False
 
     def send(self, msg: str):
         return send(

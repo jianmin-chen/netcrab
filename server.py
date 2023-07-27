@@ -1,5 +1,13 @@
-from db import authenticate, create, create_chatroom, chatroom_exists, chatroom_name
+from db import (
+    authenticate,
+    create,
+    create_chatroom,
+    chatroom_exists,
+    chatroom_name,
+    update_chatroom,
+)
 from chatroom import Chatroom
+from message import Message
 import json, socket, threading
 
 
@@ -81,10 +89,10 @@ class Server:
                     {"code": 200, "msgs": self.chatrooms[data["chatroom_id"]].messages},
                 )
             else:
-                # Add chatroom in
                 if not chatroom_exists(data["chatroom_id"]):
                     self.send(client, {"code": 500, "reason": "Chatroom doesn't exist"})
                     return
+                # Add to server chatrooms that are open
                 self.chatrooms[data["chatroom_id"]] = Chatroom(
                     chatroom_name(data["chatroom_id"]), data["chatroom_id"], [client]
                 )
@@ -100,7 +108,15 @@ class Server:
             if not status:
                 self.send(client, {"code": 500, "reason": "Invalid authentication"})
                 return
-            self.send(client, {"code": 200, "name": status["username"]})
+            new = Message(data["username"], data["msg"], data["chatroom_id"])
+            self.chatrooms[data["chatroom_id"]].add_message(new)
+            # Need to send out to server
+            update_chatroom(
+                data["chatroom_id"], self.chatrooms[data["chatroom_id"]].messages
+            )
+            for connection in self.chatrooms[data["chatroom_id"]]:
+                connection.send(json.dumps({"new": new}))
+            self.send(client, {"code": 200})
             return
         self.send(client, {"code": 404, "reason": "Not Found"})
 

@@ -14,6 +14,6 @@ class Chatroom:
             # Chatroom database doesn't exist yet, so create a new one
             self.messages = create_chatroom(self.uuid)
 
-    def add_messages(self, message: Message):
+    def add_message(self, message: Message):
         self.messages.append(message)
         update_chatroom(self.uuid, self.messages)
