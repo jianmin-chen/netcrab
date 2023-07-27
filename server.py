@@ -1,46 +1,52 @@
-from config import DEBUG
-import json, socket
+import json, socket, threading
 
 
 class Server:
-    def __init__(
-        self, ip_address: str, port: int, max_connections: int = 10, bufsize: int = 1024
-    ):
-        self.ip_address = ip_address
+    def __init__(self, host: str, port: int, backlog: int = 10, bufsize: int = 1024):
+        self.host = host
         self.port = port
-        self.max_connections = max_connections
+        self.backlog = backlog
         self.bufsize = bufsize
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.bind((self.ip_address, self.port))
-        self.socket.setblocking(False)
-        self.socket.listen(max_connections)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.bind((self.host, self.port))
 
     def close(self):
         """
         Close socket.
         """
 
-        self.socket.shutdown(socket.SHUT_RDWR)
-
-    def receive(self, decode_as: str = "ascii"):
-        """
-        Receive data being sent from a client.
-        """
-
-        connection = None
         try:
-            connection, address = self.socket.accept()
+            self.socket.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
+
+    def listen(self):
+        self.socket.listen(self.backlog)
+        while True:
+            client, address = self.socket.accept()
+            client.settimeout(60)
+            threading.Thread(target=self.receive, args=(client, address)).start()
+
+    def receive(self, client, address):
+        try:
             fragments = []
             while True:
-                chunk = connection.recv(self.bufsize)
+                chunk = client.recv(self.bufsize)
                 fragments.append(chunk)
                 if len(chunk) < self.bufsize:
                     break
-            return json.loads((b"".join(fragments)).decode(decode_as)), connection
-        except BlockingIOError:
-            if connection is not None:
-                connection.close()
-            return None
+            self.respond(
+                client, address, json.loads((b"".join(fragments)).decode("ascii"))
+            )
+        except Exception as e:
+            self.send(client, {"code": 500, "reason": str(e)})
+
+    def respond(self, client, address, data):
+        self.send(client, {"response": "received"})
+
+    def send(self, client, data: dict):
+        client.send(json.dumps(data).encode())
 
 
 def available_port(start: int, max_search: int = 10):
