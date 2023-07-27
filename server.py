@@ -1,3 +1,4 @@
+from db import authenticate, create
 import json, socket, threading
 
 
@@ -43,7 +44,23 @@ class Server:
             self.send(client, {"code": 500, "reason": str(e)})
 
     def respond(self, client, address, data):
-        self.send(client, {"response": "received"})
+        if (
+            data.get("route") == "auth"
+            and data.get("username") is not None
+            and data.get("password") is not None
+        ):
+            status = authenticate(data["username"], data["password"])
+            self.send(client, {"code": 200, "status": status})
+            return
+        elif (
+            data.get("route") == "signup"
+            and data.get("username") is not None
+            and data.get("password") is not None
+        ):
+            uuid = create(data["username"], data["password"])
+            self.send(client, {"code": 200, "uuid": uuid})
+            return
+        self.send(client, {"code": 404, "reason": "Not Found"})
 
     def send(self, client, data: dict):
         client.send(json.dumps(data).encode())

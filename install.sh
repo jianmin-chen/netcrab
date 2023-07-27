@@ -1,2 +1,2 @@
 touch clients.json
-"[]" > clients.json
+echo "[]" > clients.json

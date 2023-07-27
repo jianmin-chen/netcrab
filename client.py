@@ -16,34 +16,41 @@ def send(host: str, port: int, data: dict):
     """
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        s.connect((host, port))
-        s.settimeout(60)
-        s.send(json.dumps(data).encode())
-        fragments = []
-        while True:
-            chunk = s.recv(1024)
-            fragments.append(chunk)
-            if len(chunk) < 1024:
-                break
-        s.shutdown(socket.SHUT_RDWR)
-        status = json.loads((b"".join(fragments)).decode("ascii"))
-        return status
-    except:
-        s.shutdown(socket.SHUT_RDWR)
-
-
-def authenticate(username: str, password: str):
-    pass
+    s.connect((host, port))
+    s.settimeout(60)
+    s.send(json.dumps(data).encode())
+    fragments = []
+    while True:
+        chunk = s.recv(1024)
+        fragments.append(chunk)
+        if len(chunk) < 1024:
+            break
+    s.shutdown(socket.SHUT_RDWR)
+    status = json.loads((b"".join(fragments)).decode("ascii"))
+    return status
 
 
 class Client:
-    def __init__(self, username: str, password: str, ip_address: str):
+    @classmethod
+    def authenticate(cls, host: int, port: int, username: str, password: str):
+        status = send(
+            host, port, {"route": "auth", "username": username, "password": password}
+        )
+        return status
+
+    @classmethod
+    def signup(cls, host: int, port: int, username: str, password: str):
+        status = send(
+            host, port, {"route": "signup", "username": username, "password": password}
+        )
+        print(status)
+        return status["uuid"]
+
+    def __init__(self, username: str, password: str, uuid: str, ip_address: str):
         self.username = username
         self.password = password
+        self.uuid = uuid
         self.ip_address = ip_address
-
-        auth = authenticate(self.username, self.password)
 
     def __dict__(self):
         return {

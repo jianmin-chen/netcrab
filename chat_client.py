@@ -12,7 +12,17 @@ if __name__ == "__main__":
     username = argv[1]
     password = argv[2]
 
-    client = Client(username, password, "0.0.0.0")
+    authenticate = Client.authenticate(host, port, username, password)
+    if authenticate["status"] is None:
+        # Sign user up for an account
+        uuid = Client.signup(host, port, username, password)
+    elif not authenticate["status"]:
+        print("Invalid password. Try again?")
+        exit(0)
+    else:
+        uuid = authenticate
+
+    client = Client(username, password, uuid, "0.0.0.0")
 
     while True:
         try:

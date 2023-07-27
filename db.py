@@ -1,4 +1,4 @@
-import json, hashlib
+import json, hashlib, pprint
 
 
 def exists(uuid: str):
@@ -68,8 +68,10 @@ def create(username: str, password: str):
         return password
 
     uuid = hashlib.sha1(username.encode("utf-8")).hexdigest()
-    with open("clients.json", "r+w") as f:
+    db = None
+    with open("clients.json", "r") as f:
         db = json.loads(f.read())
+    with open("clients.json", "w") as f:
         db.append(
             {
                 "username": username,
@@ -77,7 +79,7 @@ def create(username: str, password: str):
                 "uuid": uuid,
             }
         )
-        f.write(db)
+        f.write(json.dumps(db))
     return uuid
 
 
