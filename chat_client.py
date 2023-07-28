@@ -1,8 +1,9 @@
 from os import system
 from sys import argv, exit
 from client import Client
+from colors import Colors
 
-host = "10.29.83.169"
+host = "10.0.0.81"
 port = 5000
 
 
@@ -19,24 +20,27 @@ if __name__ == "__main__":
 
     username = argv[1]
     password = argv[2]
+    color = Colors.random()
 
     authenticate = Client.authenticate(host, port, username, password)
     if authenticate["status"] is None:
         # Sign user up for an account
-        uuid = Client.signup(host, port, username, password)
-        print("~ Signed up for an account")
+        uuid = Client.signup(host, port, username, password, color)
+        print(f"{Colors.BOLD}~ Signed up for an account{Colors.ENDC}")
     elif not authenticate["status"]:
-        print("~ Invalid password. Try again?")
+        print(f"{Colors.BOLD}~ Invalid password. Try again?{Colors.ENDC}")
         exit(0)
     else:
         uuid = authenticate
 
-    client = Client(username, password, uuid, "0.0.0.0", host, port)
+    client = Client(username, password, uuid, color, "0.0.0.0", host, port)
 
     join = None
     try:
         while join is None:
-            join = int(input("~ Join or create chatroom (1/2): "))
+            join = int(
+                input(f"{Colors.BOLD}~ Join or create chatroom (1/2): {Colors.ENDC}")
+            )
             if join not in [1, 2]:
                 join = None
     except ValueError:
@@ -46,26 +50,30 @@ if __name__ == "__main__":
         # Join chatroom
         chatroom_id = None
         while chatroom_id is None:
-            chatroom_id = input("~ Chatroom ID: ")
+            chatroom_id = input(f"{Colors.BOLD}~ Chatroom ID: {Colors.ENDC}")
             connected = client.join(chatroom_id)
             if not connected:
-                print("~ Invalid chatroom ID, try again? ")
+                print(f"{Colors.BOLD}~ Invalid chatroom ID, try again? {Colors.ENDC}")
                 chatroom_id = None
-        print("~ Joined chatroom")
+        print(f"{Colors.BOLD}~ Joined chatroom{Colors.ENDC}")
         display_messages(connected)
     elif join == 2:
         # Create chatroom
-        name = input("~ Name of chatroom: ")
+        name = input(f"{Colors.BOLD}~ Name of chatroom: {Colors.ENDC}")
         client.create(name)
-        print("~ Created chatroom")
+        print(f"{Colors.BOLD}~ Created chatroom{Colors.ENDC}")
 
     while True:
         try:
-            msg = input("> ")
+            msg = input("")
             status = client.send(msg)
         except KeyboardInterrupt:
-            print("~ KeyboardInterrupt, shutting down")
+            client.signout()
+            print(f"{Colors.BOLD}~ KeyboardInterrupt, shutting down{Colors.ENDC}")
             exit(0)
         except Exception as e:
-            print("~ Whoops, something caused the client to crash:", e)
+            print(
+                f"{Colors.BOLD}~ Whoops, something caused the client to crash:{Colors.ENDC}",
+                e,
+            )
             exit(-1)

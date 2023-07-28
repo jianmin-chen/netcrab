@@ -1,3 +1,4 @@
+from colors import Colors
 import json, hashlib, pprint
 
 
@@ -44,7 +45,11 @@ def authenticate(username: str, password: str):
                 password, client["password"]
             ):
                 # Valid user, return UUID
-                authenticated = {"uuid": client["uuid"], "username": client["username"]}
+                authenticated = {
+                    "uuid": client["uuid"],
+                    "username": client["username"],
+                    "color": client["color"],
+                }
                 break
             elif client["username"] == username and not check_password(
                 password, client["password"]
@@ -54,13 +59,14 @@ def authenticate(username: str, password: str):
     return authenticated
 
 
-def create(username: str, password: str):
+def create(username: str, password: str, color=Colors.random()):
     """
     Creates user in database file.
 
     Parameters:
         username (str)
         password (str)
+        color (str)
     """
 
     def hash_password(password):
@@ -77,6 +83,7 @@ def create(username: str, password: str):
                 "username": username,
                 "password": hash_password(password),
                 "uuid": uuid,
+                "color": color,
             }
         )
         f.write(json.dumps(db))

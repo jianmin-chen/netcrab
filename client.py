@@ -1,5 +1,5 @@
 from message import Message
-import json, socket
+import json, socket, threading
 
 
 def send(host: str, port: int, data: dict):
@@ -39,9 +39,16 @@ class Client:
         return status
 
     @classmethod
-    def signup(cls, host: int, port: int, username: str, password: str):
+    def signup(cls, host: int, port: int, username: str, password: str, color: str):
         status, s = send(
-            host, port, {"route": "signup", "username": username, "password": password}
+            host,
+            port,
+            {
+                "route": "signup",
+                "username": username,
+                "password": password,
+                "color": color,
+            },
         )
         s.shutdown(socket.SHUT_RDWR)
         return status["uuid"]
@@ -50,6 +57,7 @@ class Client:
         self,
         username: str,
         password: str,
+        color: str,
         uuid: str,
         ip_address: str,
         host: str,
@@ -57,11 +65,13 @@ class Client:
     ):
         self.username = username
         self.password = password
+        self.color = color
         self.uuid = uuid
         self.ip_address = ip_address
         self.host = host
         self.port = port
         self.chatroom = None
+        self.conn = None
 
     def __dict__(self):
         return {
@@ -69,8 +79,23 @@ class Client:
             "ip_address": self.ip_address,
         }
 
+    def listen(self):
+        """
+        Continously listen for messages from the server in case of new messages.
+        """
+
+        fragments = []
+        while True:
+            chunk = self.conn.recv(1024)
+            if chunk:
+                fragments.append(chunk.decode("ascii"))
+                if fragments[-1].endswith("}"):
+                    msg = json.loads("".join(fragments))
+                    print(msg["new"])
+                    fragments = []
+
     def create(self, name: str):
-        status = send(
+        status, s = send(
             self.host,
             self.port,
             {
@@ -81,11 +106,16 @@ class Client:
             },
         )
         if status["code"] != 200:
+            s.shutdown(socket.SHUT_RDWR)
             raise Exception(status["reason"])
+        self.conn = s
+        thread = threading.Thread(target=self.listen)
+        thread.daemon = True
+        thread.start()
         self.chatroom = status["chatroom_id"]
 
     def join(self, chatroom_id: str):
-        status = send(
+        status, s = send(
             self.host,
             self.port,
             {
@@ -97,11 +127,30 @@ class Client:
         )
         if status["code"] == 200:
             self.chatroom = chatroom_id
+            self.conn = s
+            thread = threading.Thread(target=self.listen)
+            thread.daemon = True
+            thread.start()
             return status["msgs"]
+        s.shutdown(socket.SHUT_RDWR)
         return False
 
+    def signout(self):
+        self.conn.close()
+        status, s = send(
+            self.host,
+            self.port,
+            {
+                "route": "signout",
+                "username": self.username,
+                "password": self.password,
+                "chatroom_id": self.chatroom,
+            },
+        )
+        s.shutdown(socket.SHUT_RDWR)
+
     def send(self, msg: str):
-        return send(
+        status, s = send(
             self.host,
             self.port,
             {
@@ -112,3 +161,4 @@ class Client:
                 "msg": msg,
             },
         )
+        s.shutdown(socket.SHUT_RDWR)

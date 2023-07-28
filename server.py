@@ -7,12 +7,17 @@ from db import (
     update_chatroom,
 )
 from chatroom import Chatroom
+from colors import Colors
 from message import Message
 import json, socket, threading
 
 
 def not_none(d, keys):
     return False not in [d.get(key) is not None for key in keys]
+
+
+def jsonify(messages: list):
+    return [str(message) for message in messages]
 
 
 class Server:
@@ -40,8 +45,10 @@ class Server:
         self.socket.listen(self.backlog)
         while True:
             client, address = self.socket.accept()
-            client.settimeout(60)
-            threading.Thread(target=self.receive, args=(client, address)).start()
+            client.settimeout(3600)
+            thread = threading.Thread(target=self.receive, args=(client, address))
+            thread.daemon = True
+            thread.start()
 
     def receive(self, client, address):
         try:
@@ -55,6 +62,7 @@ class Server:
                 client, address, json.loads((b"".join(fragments)).decode("ascii"))
             )
         except Exception as e:
+            print("An error occurred:", e)
             self.send(client, {"code": 500, "reason": str(e)})
 
     def respond(self, client, address, data):
@@ -62,10 +70,32 @@ class Server:
             status = authenticate(data["username"], data["password"])
             self.send(client, {"code": 200, "status": status})
             return
-        elif data.get("route") == "signup" and not_none(data, ["username", "password"]):
-            uuid = create(data["username"], data["password"])
+        elif data.get("route") == "signup" and not_none(
+            data, ["username", "password", "color"]
+        ):
+            uuid = create(data["username"], data["password"], data["color"])
             self.send(client, {"code": 200, "uuid": uuid})
             return
+        elif data.get("route") == "signout" and not_none(
+            data, ["username", "password", "chatroom_id"]
+        ):
+            status = authenticate(data["username"], data["password"])
+            if status and data["chatroom_id"] in self.chatrooms.keys():
+                new = Message(
+                    f"{status['color']}{data['username']}{Colors.ENDC}",
+                    "Left the chatroom",
+                    data["chatroom_id"],
+                )
+                self.chatrooms[data["chatroom_id"]].add_message(new)
+                for connection in self.chatrooms[data["chatroom_id"]].connections:
+                    try:
+                        self.send(
+                            connection, {"username": data["username"], "new": str(new)}
+                        )
+                        connection.settimeout(3600)
+                    except:
+                        pass
+                self.send(client, {"code": 200})
         elif data.get("route") == "create" and not_none(
             data, ["username", "password", "name"]
         ):
@@ -79,15 +109,34 @@ class Server:
         elif data.get("route") == "join" and not_none(
             data, ["username", "password", "chatroom_id"]
         ):
-            if not authenticate(data["username"], data["password"]):
+            status = authenticate(data["username"], data["password"])
+            if not status:
                 self.send(client, {"code": 500, "reason": "Invalid authentication"})
                 return
             if data["chatroom_id"] in self.chatrooms.keys():
                 self.chatrooms[data["chatroom_id"]].connections.append(client)
+                new = Message(
+                    f"{status['color']}{data['username']}{Colors.ENDC}",
+                    "Joined the chatroom",
+                    data["chatroom_id"],
+                )
+                self.chatrooms[data["chatroom_id"]].add_message(new)
                 self.send(
                     client,
-                    {"code": 200, "msgs": self.chatrooms[data["chatroom_id"]].messages},
+                    {
+                        "code": 200,
+                        "msgs": jsonify(self.chatrooms[data["chatroom_id"]].messages),
+                    },
                 )
+                for connection in self.chatrooms[data["chatroom_id"]].connections:
+                    try:
+                        self.send(
+                            connection, {"username": data["username"], "new": str(new)}
+                        )
+                        connection.settimeout(3600)
+                    except:
+                        pass
+                return
             else:
                 if not chatroom_exists(data["chatroom_id"]):
                     self.send(client, {"code": 500, "reason": "Chatroom doesn't exist"})
@@ -98,7 +147,10 @@ class Server:
                 )
                 self.send(
                     client,
-                    {"code": 200, "msgs": self.chatrooms[data["chatroom_id"]].messages},
+                    {
+                        "code": 200,
+                        "msgs": jsonify(self.chatrooms[data["chatroom_id"]].messages),
+                    },
                 )
                 return
         elif data.get("route") == "chat" and not_none(
@@ -108,14 +160,24 @@ class Server:
             if not status:
                 self.send(client, {"code": 500, "reason": "Invalid authentication"})
                 return
-            new = Message(data["username"], data["msg"], data["chatroom_id"])
+            new = Message(
+                f"{status['color']}{data['username']}{Colors.ENDC}",
+                data["msg"],
+                data["chatroom_id"],
+            )
             self.chatrooms[data["chatroom_id"]].add_message(new)
             # Need to send out to server
             update_chatroom(
                 data["chatroom_id"], self.chatrooms[data["chatroom_id"]].messages
             )
-            for connection in self.chatrooms[data["chatroom_id"]]:
-                connection.send(json.dumps({"new": new}))
+            for connection in self.chatrooms[data["chatroom_id"]].connections:
+                try:
+                    self.send(
+                        connection, {"username": data["username"], "new": str(new)}
+                    )
+                    connection.settimeout(3600)
+                except:
+                    pass
             self.send(client, {"code": 200})
             return
         self.send(client, {"code": 404, "reason": "Not Found"})
