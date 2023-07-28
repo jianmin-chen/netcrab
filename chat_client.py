@@ -2,7 +2,7 @@ from os import system
 from sys import argv, exit
 from client import Client
 
-host = "10.29.83.169"
+host = "10.0.0.81"
 port = 5000
 
 
