@@ -1,4 +1,5 @@
 from message import Message
+from sys import exit
 import json, socket, threading
 
 
@@ -108,11 +109,11 @@ class Client:
         if status["code"] != 200:
             s.shutdown(socket.SHUT_RDWR)
             raise Exception(status["reason"])
+        self.chatroom = status["chatroom_id"]
         self.conn = s
         thread = threading.Thread(target=self.listen)
         thread.daemon = True
         thread.start()
-        self.chatroom = status["chatroom_id"]
 
     def join(self, chatroom_id: str):
         status, s = send(
@@ -136,7 +137,6 @@ class Client:
         return False
 
     def signout(self):
-        self.conn.close()
         status, s = send(
             self.host,
             self.port,

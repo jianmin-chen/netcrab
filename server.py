@@ -95,7 +95,7 @@ class Server:
                         connection.settimeout(3600)
                     except:
                         pass
-                self.send(client, {"code": 200})
+                return
         elif data.get("route") == "create" and not_none(
             data, ["username", "password", "name"]
         ):
@@ -114,20 +114,12 @@ class Server:
                 self.send(client, {"code": 500, "reason": "Invalid authentication"})
                 return
             if data["chatroom_id"] in self.chatrooms.keys():
-                self.chatrooms[data["chatroom_id"]].connections.append(client)
                 new = Message(
                     f"{status['color']}{data['username']}{Colors.ENDC}",
                     "Joined the chatroom",
                     data["chatroom_id"],
                 )
                 self.chatrooms[data["chatroom_id"]].add_message(new)
-                self.send(
-                    client,
-                    {
-                        "code": 200,
-                        "msgs": jsonify(self.chatrooms[data["chatroom_id"]].messages),
-                    },
-                )
                 for connection in self.chatrooms[data["chatroom_id"]].connections:
                     try:
                         self.send(
@@ -136,6 +128,14 @@ class Server:
                         connection.settimeout(3600)
                     except:
                         pass
+                self.chatrooms[data["chatroom_id"]].connections.append(client)
+                self.send(
+                    client,
+                    {
+                        "code": 200,
+                        "msgs": jsonify(self.chatrooms[data["chatroom_id"]].messages),
+                    },
+                )
                 return
             else:
                 if not chatroom_exists(data["chatroom_id"]):
@@ -145,6 +145,12 @@ class Server:
                 self.chatrooms[data["chatroom_id"]] = Chatroom(
                     chatroom_name(data["chatroom_id"]), data["chatroom_id"], [client]
                 )
+                new = Message(
+                    f"{status['color']}{data['username']}{Colors.ENDC}",
+                    "Joined the chatroom",
+                    data["chatroom_id"],
+                )
+                self.chatrooms[data["chatroom_id"]].add_message(new)
                 self.send(
                     client,
                     {

@@ -3,7 +3,7 @@ from sys import argv, exit
 from client import Client
 from colors import Colors
 
-host = "10.0.0.81"
+host = "10.29.83.169"
 port = 5000
 
 
@@ -68,12 +68,11 @@ if __name__ == "__main__":
             msg = input("")
             status = client.send(msg)
         except KeyboardInterrupt:
-            client.signout()
             print(f"{Colors.BOLD}~ KeyboardInterrupt, shutting down{Colors.ENDC}")
-            exit(0)
+            client.signout()
         except Exception as e:
             print(
                 f"{Colors.BOLD}~ Whoops, something caused the client to crash:{Colors.ENDC}",
                 e,
             )
-            exit(-1)
+            client.signout()
