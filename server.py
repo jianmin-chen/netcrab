@@ -15,10 +15,6 @@ def not_none(d, keys):
     return False not in [d.get(key) is not None for key in keys]
 
 
-def jsonify(messages: list):
-    return [str(message) for message in messages]
-
-
 class Server:
     def __init__(self, host: str, port: int, backlog: int = 10, bufsize: int = 1024):
         self.host = host
@@ -44,10 +40,8 @@ class Server:
         self.socket.listen(self.backlog)
         while True:
             client, address = self.socket.accept()
-            client.settimeout(3600)
-            thread = threading.Thread(target=self.receive, args=(client, address))
-            thread.daemon = True
-            thread.start()
+            client.settimeout(60)
+            threading.Thread(target=self.receive, args=(client, address)).start()
 
     def receive(self, client, address):
         try:
@@ -61,7 +55,6 @@ class Server:
                 client, address, json.loads((b"".join(fragments)).decode("ascii"))
             )
         except Exception as e:
-            print("An error occurred:", e)
             self.send(client, {"code": 500, "reason": str(e)})
 
     def respond(self, client, address, data):
@@ -93,12 +86,8 @@ class Server:
                 self.chatrooms[data["chatroom_id"]].connections.append(client)
                 self.send(
                     client,
-                    {
-                        "code": 200,
-                        "msgs": jsonify(self.chatrooms[data["chatroom_id"]].messages),
-                    },
+                    {"code": 200, "msgs": self.chatrooms[data["chatroom_id"]].messages},
                 )
-                return
             else:
                 if not chatroom_exists(data["chatroom_id"]):
                     self.send(client, {"code": 500, "reason": "Chatroom doesn't exist"})
@@ -109,10 +98,7 @@ class Server:
                 )
                 self.send(
                     client,
-                    {
-                        "code": 200,
-                        "msgs": jsonify(self.chatrooms[data["chatroom_id"]].messages),
-                    },
+                    {"code": 200, "msgs": self.chatrooms[data["chatroom_id"]].messages},
                 )
                 return
         elif data.get("route") == "chat" and not_none(
@@ -128,19 +114,8 @@ class Server:
             update_chatroom(
                 data["chatroom_id"], self.chatrooms[data["chatroom_id"]].messages
             )
-            remove = []
-            for i, connection in enumerate(
-                self.chatrooms[data["chatroom_id"]].connections
-            ):
-                try:
-                    self.send(
-                        connection, {"username": data["username"], "new": str(new)}
-                    )
-                    connection.settimeout(3600)
-                except BrokenPipeError:
-                    remove.append(i)
-            for i in remove:
-                del self.chatrooms[data["chatroom_id"]].connections
+            for connection in self.chatrooms[data["chatroom_id"]]:
+                connection.send(json.dumps({"new": new}))
             self.send(client, {"code": 200})
             return
         self.send(client, {"code": 404, "reason": "Not Found"})

@@ -1,5 +1,5 @@
 from message import Message
-import json, socket, threading
+import json, socket
 
 
 def send(host: str, port: int, data: dict):
@@ -69,25 +69,8 @@ class Client:
             "ip_address": self.ip_address,
         }
 
-    def listen(self, s: socket.socket):
-        """
-        Continously listen for messages from the server in case of new messages.
-        """
-
-        fragments = []
-        while True:
-            chunk = s.recv(1024)
-            if chunk:
-                fragments.append(chunk.decode("ascii"))
-                if fragments[-1].endswith("}"):
-                    msg = json.loads("".join(fragments))
-                    if msg["username"] != self.username:
-                        print(msg["new"])
-                        print("> ", end="")
-                    fragments = []
-
     def create(self, name: str):
-        status, s = send(
+        status = send(
             self.host,
             self.port,
             {
@@ -98,15 +81,11 @@ class Client:
             },
         )
         if status["code"] != 200:
-            s.shutdown(socket.SHUT_RDWR)
             raise Exception(status["reason"])
-        thread = threading.Thread(target=self.listen, args=(s,))
-        thread.daemon = True
-        thread.start()
         self.chatroom = status["chatroom_id"]
 
     def join(self, chatroom_id: str):
-        status, s = send(
+        status = send(
             self.host,
             self.port,
             {
@@ -118,15 +97,11 @@ class Client:
         )
         if status["code"] == 200:
             self.chatroom = chatroom_id
-            thread = threading.Thread(target=self.listen, args=(s,))
-            thread.daemon = True
-            thread.start()
             return status["msgs"]
-        s.shutdown(socket.SHUT_RDWR)
         return False
 
     def send(self, msg: str):
-        status, s = send(
+        return send(
             self.host,
             self.port,
             {
@@ -137,4 +112,3 @@ class Client:
                 "msg": msg,
             },
         )
-        s.shutdown(socket.SHUT_RDWR)
